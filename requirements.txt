@@ -6,3 +6,8 @@ seaborn
 scipy
 joblib
 pyarrow
+xgboost>=2.0
+lightgbm>=4.0
+shap>=0.44
+optuna>=3.0
+imbalanced-learn>=0.11
