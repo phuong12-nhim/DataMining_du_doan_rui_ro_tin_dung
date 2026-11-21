@@ -98,7 +98,7 @@ def build_model(kind, params=None, scale_pos_weight=1.0, es=True):
                              n_jobs=-1, random_state=RANDOM_STATE, **p)
     if kind == "lightgbm":
         from lightgbm import LGBMClassifier
-        return LGBMClassifier(objective="binary", scale_pos_weight=scale_pos_weight, n_jobs=-1,
+        return LGBMClassifier(objective="binary", matrix = "auc", scale_pos_weight=scale_pos_weight, n_jobs=-1,
                               random_state=RANDOM_STATE, verbosity=-1, **p)
     raise ValueError(kind)
 
