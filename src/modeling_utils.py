@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import (average_precision_score, confusion_matrix, f1_score, precision_recall_curve,
                              precision_score, recall_score, roc_auc_score)
+from sklearn.metrics import brier_score_loss  
 from sklearn.model_selection import train_test_split
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -78,6 +79,7 @@ def evaluate(name, y_true, proba):
         "precision@0.5": precision_score(y_true, pred05, zero_division=0),
         "recall@0.5": recall_score(y_true, pred05, zero_division=0),
         "f1@0.5": f1_score(y_true, pred05),
+        "brier": brier_score_loss(y_true, proba),
         "best_f1_threshold": best_thr,
         "precision@best": precision_score(y_true, predb, zero_division=0),
         "recall@best": recall_score(y_true, predb, zero_division=0),

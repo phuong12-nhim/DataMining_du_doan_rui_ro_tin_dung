@@ -21,10 +21,9 @@ warnings.filterwarnings("ignore")
 Xtr, ytr, Xva, yva, _ = load_train_valid()
 X_fit, X_es, y_fit, y_es = split_es(Xtr, ytr)
 ratio = pos_weight(ytr)
-rng = np.random.RandomState(RANDOM_STATE)
-
 
 def undersample(X, y, neg_per_pos=3):
+    rng = np.random.RandomState(RANDOM_STATE)
     pos_idx = np.where(y.values == 1)[0]
     neg_idx = np.where(y.values == 0)[0]
     neg_keep = rng.choice(neg_idx, size=min(len(neg_idx), neg_per_pos * len(pos_idx)), replace=False)

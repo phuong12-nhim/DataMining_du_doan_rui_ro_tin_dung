@@ -74,7 +74,7 @@ for kind, label in [("xgboost", "XGBoost"), ("lightgbm", "LightGBM")]:
 # %% [markdown]
 # ## Bảng so sánh
 # %%
-cols = ["roc_auc", "pr_auc", "precision@0.5", "recall@0.5", "f1@0.5", "best_f1_threshold",
+cols = ["roc_auc", "pr_auc", "brier", "precision@0.5", "recall@0.5", "f1@0.5", "best_f1_threshold",
         "precision@best", "recall@best", "f1@best", "train_seconds"]
 comp = pd.DataFrame(rows).drop_duplicates("model", keep="last").set_index("model")
 comp = comp[[c for c in cols if c in comp]].sort_values(args.select, ascending=False)

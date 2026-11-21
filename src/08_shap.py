@@ -104,7 +104,7 @@ for tag, i in cases.items():
     exp = shap.Explanation(values=sv[i], base_values=base, data=Xs.iloc[i].values, feature_names=list(Xs.columns))
     plt.figure()
     shap.plots.waterfall(exp, max_display=12, show=False)
-    plt.title(f"{tag}: P(vỡ nợ)={proba_s[i]:.3f}, TARGET thực tế={int(ys.iloc[i])}")
+    plt.title(f"{tag}: điểm dự đoán (chưa hiệu chuẩn)={proba_s[i]:.3f}, TARGET thực tế={int(ys.iloc[i])}")
     plt.savefig(FIG_DIR / f"18_shap_waterfall_{tag}.png", dpi=130, bbox_inches="tight")
     plt.close()
 
