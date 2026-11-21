@@ -64,7 +64,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         new["ANNUITY_INCOME_RATIO"] = _safe_div(df["AMT_ANNUITY"], df["AMT_INCOME_TOTAL"])
     if has("AMT_CREDIT", "AMT_ANNUITY"):
         # kỳ hạn vay xấp xỉ (số kỳ trả góp)
-        new["CREDIT_TERM"] = _safe_div(df["AMT_ANNUITY"], df["AMT_CREDIT"])
+        new["CREDIT_TERM"] = _safe_div(df["AMT_CREDIT"], df["AMT_ANNUITY"])
     if has("AMT_CREDIT", "AMT_GOODS_PRICE"):
         new["CREDIT_GOODS_RATIO"] = _safe_div(df["AMT_CREDIT"], df["AMT_GOODS_PRICE"])
         new["GOODS_CREDIT_DIFF"] = df["AMT_GOODS_PRICE"] - df["AMT_CREDIT"]
