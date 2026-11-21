@@ -10,7 +10,7 @@ import numpy as np
 import optuna
 import pandas as pd
 from sklearn.metrics import average_precision_score, roc_auc_score
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, train_test_split
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import RANDOM_STATE, REPORT_DIR  # noqa: E402
@@ -27,7 +27,18 @@ ap.add_argument("--metric", choices=["roc_auc", "pr_auc"], default="roc_auc")
 ap.add_argument("--frac", type=float, default=1.0, help="tỷ lệ train dùng khi tuning (0-1), giảm để chạy nhanh")
 ap.add_argument("--timeout", type=int, default=None, help="giây tối đa cho mỗi mô hình")
 args = ap.parse_args()
+if args.trials < 1:
+    ap.error("--trials phải >= 1")
 
+if args.folds < 2:
+    ap.error("--folds phải >= 2")
+
+if not 0 < args.frac <= 1:
+    ap.error("--frac phải nằm trong khoảng (0, 1]")
+
+if args.timeout is not None and args.timeout <= 0:
+    ap.error("--timeout phải > 0")
+    
 # %%
 Xtr, ytr, _, _, _ = load_train_valid()
 if args.frac < 1.0:
@@ -41,49 +52,129 @@ skf = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=RANDOM_STA
 
 
 def suggest(trial, kind):
-    spw_choice = trial.suggest_categorical("spw_mode", ["none", "sqrt", "full"])
-    spw = {"none": 1.0, "sqrt": float(np.sqrt(ratio)), "full": ratio}[spw_choice]
+    # Chỉ chọn chiến lược, chưa tính trọng số 
+    spw_mode = trial.suggest_categorical(
+        "spw_mode",
+        ["none", "sqrt", "full"]
+    )
+
     if kind == "lightgbm":
         params = dict(
-            num_leaves=trial.suggest_int("num_leaves", 15, 127, log=True),
-            min_child_samples=trial.suggest_int("min_child_samples", 20, 300, log=True),
-            subsample=trial.suggest_float("subsample", 0.6, 1.0),
+            num_leaves=trial.suggest_int(
+                "num_leaves", 15, 127, log=True
+            ),
+            min_child_samples=trial.suggest_int(
+                "min_child_samples", 20, 300, log=True
+            ),
+            subsample=trial.suggest_float(
+                "subsample", 0.6, 1.0
+            ),
             subsample_freq=1,
-            colsample_bytree=trial.suggest_float("colsample_bytree", 0.3, 1.0),
-            reg_alpha=trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
-            reg_lambda=trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
-            min_split_gain=trial.suggest_float("min_split_gain", 0.0, 0.5),
+            colsample_bytree=trial.suggest_float(
+                "colsample_bytree", 0.3, 1.0
+            ),
+            reg_alpha=trial.suggest_float(
+                "reg_alpha", 1e-3, 10.0, log=True
+            ),
+            reg_lambda=trial.suggest_float(
+                "reg_lambda", 1e-3, 10.0, log=True
+            ),
+            min_split_gain=trial.suggest_float(
+                "min_split_gain", 0.0, 0.5
+            ),
         )
     else:
         params = dict(
-            max_depth=trial.suggest_int("max_depth", 3, 8),
-            min_child_weight=trial.suggest_float("min_child_weight", 1.0, 50.0, log=True),
-            subsample=trial.suggest_float("subsample", 0.6, 1.0),
-            colsample_bytree=trial.suggest_float("colsample_bytree", 0.3, 1.0),
-            gamma=trial.suggest_float("gamma", 0.0, 5.0),
-            reg_alpha=trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
-            reg_lambda=trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
+            max_depth=trial.suggest_int(
+                "max_depth", 3, 8
+            ),
+            min_child_weight=trial.suggest_float(
+                "min_child_weight", 1.0, 50.0, log=True
+            ),
+            subsample=trial.suggest_float(
+                "subsample", 0.6, 1.0
+            ),
+            colsample_bytree=trial.suggest_float(
+                "colsample_bytree", 0.3, 1.0
+            ),
+            gamma=trial.suggest_float(
+                "gamma", 0.0, 5.0
+            ),
+            reg_alpha=trial.suggest_float(
+                "reg_alpha", 1e-3, 10.0, log=True
+            ),
+            reg_lambda=trial.suggest_float(
+                "reg_lambda", 1e-3, 10.0, log=True
+            ),
         )
-    return params, spw
+
+    return params, spw_mode
+
 
 
 def make_objective(kind):
     def objective(trial):
-        params, spw = suggest(trial, kind)
+        params, spw_mode = suggest(trial, kind)
+
         scores, iters = [], []
         for i, (a, b) in enumerate(skf.split(Xtr, ytr)):
-            model, best_iter = train_with_es(kind, params, Xtr.iloc[a], ytr.iloc[a], Xtr.iloc[b], ytr.iloc[b], spw)
-            scores.append(score_fn(ytr.iloc[b], predict(model, Xtr.iloc[b])))
+
+            # Outer training
+            X_outer = Xtr.iloc[a]
+            y_outer = ytr.iloc[a]
+
+            # Inner split cho early stopping
+            X_fit, X_es, y_fit, y_es = train_test_split(
+                X_outer,
+                y_outer,
+                test_size=0.10,
+                stratify=y_outer,
+                random_state=RANDOM_STATE + i
+            )
+
+            # Tính class weight CHỈ từ inner training
+            ratio_fit = pos_weight(y_fit)
+
+            spw = {
+                "none": 1.0,
+                "sqrt": float(np.sqrt(ratio_fit)),
+                "full": ratio_fit
+            }[spw_mode]
+
+            # Huấn luyện và early stopping
+            model, best_iter = train_with_es(
+                kind,
+                params,
+                X_fit,
+                y_fit,
+                X_es,
+                y_es,
+                scale_pos_weight=spw
+            )
+
+            # Outer validation chỉ dùng để đánh giá
+            p = predict(model, Xtr.iloc[b])
+
+            score = score_fn(ytr.iloc[b], p)
+
+            scores.append(float(score))
             iters.append(best_iter)
+            # Báo cáo kết quả từng fold cho Optuna
             trial.report(float(np.mean(scores)), i)
             if trial.should_prune():
                 raise optuna.TrialPruned()
-        trial.set_user_attr("best_iteration", int(np.mean(iters)))
+
+        trial.set_user_attr(
+            "best_iteration",
+            int(np.mean(iters))
+        )
+
         return float(np.mean(scores))
     return objective
 
 
 # %%
+REPORT_DIR.mkdir(parents=True, exist_ok=True)
 kinds = ["xgboost", "lightgbm"] if args.model == "both" else [args.model]
 for kind in kinds:
     t0 = time.time()
@@ -96,6 +187,17 @@ for kind in kinds:
                   f"{time.time() - t0:.0f}s")
 
     study.optimize(make_objective(kind), n_trials=args.trials, timeout=args.timeout, callbacks=[log_cb])
+
+    completed_trials = [
+    t for t in study.trials
+    if t.state == optuna.trial.TrialState.COMPLETE
+   ]
+
+    if not completed_trials:
+        raise RuntimeError(
+        f"{kind}: Không có trial COMPLETE. "
+        "Hãy kiểm tra lỗi huấn luyện hoặc timeout."
+    )
 
     bp = dict(study.best_params)
     spw_mode = bp.pop("spw_mode")
