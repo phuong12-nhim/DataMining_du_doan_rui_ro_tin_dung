@@ -63,7 +63,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     if has("AMT_ANNUITY", "AMT_INCOME_TOTAL"):
         new["ANNUITY_INCOME_RATIO"] = _safe_div(df["AMT_ANNUITY"], df["AMT_INCOME_TOTAL"])
     if has("AMT_CREDIT", "AMT_ANNUITY"):
-        # kỳ hạn vay xấp xỉ (số kỳ trả góp)
+        # số kỳ trả góp ước tính
         new["CREDIT_TERM"] = _safe_div(df["AMT_CREDIT"], df["AMT_ANNUITY"])
     if has("AMT_CREDIT", "AMT_GOODS_PRICE"):
         new["CREDIT_GOODS_RATIO"] = _safe_div(df["AMT_CREDIT"], df["AMT_GOODS_PRICE"])
@@ -98,7 +98,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         new["EXT_SOURCE_MEAN"] = e.mean(axis=1)
         new["EXT_SOURCE_MIN"] = e.min(axis=1)
         new["EXT_SOURCE_MAX"] = e.max(axis=1)
-        new["EXT_SOURCE_STD"] = e.std(axis=1)
+        new["EXT_SOURCE_STD"] = e.std(axis=1, ddof=0)
         # Trung bình nhân của các điểm CÓ GIÁ TRỊ (thay cho tích skipna=False cũ: tích bị NaN khi thiếu bất kỳ
         # điểm nào -> thiếu > 60% và bị loại ở bước tiền xử lý). Trung bình nhân so sánh được dù số điểm khác nhau.
         new["EXT_SOURCE_GEOMEAN"] = np.exp(np.log(e.clip(lower=1e-6)).mean(axis=1))
