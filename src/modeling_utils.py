@@ -76,13 +76,39 @@ def evaluate(name, y_true, proba):
         "roc_auc": roc_auc_score(y_true, proba),
         "pr_auc": average_precision_score(y_true, proba),
         "precision@0.5": precision_score(y_true, pred05, zero_division=0),
-        "recall@0.5": recall_score(y_true, pred05),
+        "recall@0.5": recall_score(y_true, pred05, zero_division=0),
         "f1@0.5": f1_score(y_true, pred05),
         "best_f1_threshold": best_thr,
         "precision@best": precision_score(y_true, predb, zero_division=0),
-        "recall@best": recall_score(y_true, predb),
+        "recall@best": recall_score(y_true, predb, zero_division=0),
         "f1@best": f1_score(y_true, predb),
-        "tn_fp_fn_tp@best": confusion_matrix(y_true, predb).ravel().tolist(),
+        "tn_fp_fn_tp@best": confusion_matrix(y_true, predb, labels=[0, 1]).ravel().tolist(),
+    }
+
+
+def evaluate_at_threshold(name, y_true, proba, threshold):
+    pred = (proba >= threshold).astype(int)
+
+    tn, fp, fn, tp = confusion_matrix(
+        y_true, pred, labels=[0, 1]
+    ).ravel()
+
+    return {
+        "model": name,
+        "threshold": float(threshold),
+        "precision": precision_score(
+            y_true, pred, zero_division=0
+        ),
+        "recall": recall_score(
+            y_true, pred, zero_division=0
+        ),
+        "f1": f1_score(
+            y_true, pred, zero_division=0
+        ),
+        "tn": int(tn),
+        "fp": int(fp),
+        "fn": int(fn),
+        "tp": int(tp)
     }
 
 # Mô hình
