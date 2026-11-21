@@ -99,12 +99,17 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
         new["EXT_SOURCE_MIN"] = e.min(axis=1)
         new["EXT_SOURCE_MAX"] = e.max(axis=1)
         new["EXT_SOURCE_STD"] = e.std(axis=1)
-        new["EXT_SOURCE_PROD"] = e.prod(axis=1, skipna=False)
+        # Trung bình nhân của các điểm CÓ GIÁ TRỊ (thay cho tích skipna=False cũ: tích bị NaN khi thiếu bất kỳ
+        # điểm nào -> thiếu > 60% và bị loại ở bước tiền xử lý). Trung bình nhân so sánh được dù số điểm khác nhau.
+        new["EXT_SOURCE_GEOMEAN"] = np.exp(np.log(e.clip(lower=1e-6)).mean(axis=1))
         new["EXT_SOURCE_NULL_COUNT"] = e.isna().sum(axis=1)
-    if has("EXT_SOURCE_1", "EXT_SOURCE_2", "EXT_SOURCE_3"):
-        new["EXT_SOURCE_WEIGHTED"] = (
-            df["EXT_SOURCE_1"] * 2 + df["EXT_SOURCE_2"] * 3 + df["EXT_SOURCE_3"] * 4
-        )
+    # Trung bình có trọng số (2:3:4) CHUẨN HÓA theo các điểm có giá trị -> chỉ NaN khi thiếu cả 3 điểm
+    w_ext = {"EXT_SOURCE_1": 2, "EXT_SOURCE_2": 3, "EXT_SOURCE_3": 4}
+    avail = [c for c in w_ext if c in df.columns]
+    if avail:
+        wts = pd.Series({c: w_ext[c] for c in avail})
+        new["EXT_SOURCE_WEIGHTED"] = _safe_div((df[avail] * wts).sum(axis=1, min_count=1),
+                                               df[avail].notna().mul(wts).sum(axis=1))
     if has("EXT_SOURCE_3", "DAYS_BIRTH"):
         new["EXT3_X_AGE"] = df["EXT_SOURCE_3"] * (-df["DAYS_BIRTH"] / 365.25)
 
